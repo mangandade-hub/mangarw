@@ -5,12 +5,9 @@ const TARGET_DOMAIN = "https://mangarw.com";
 const IMAGE_CDN_DOMAIN = "https://cdn.mangaraw123.com";
 const IMAGE_CDN_DOMAIN_2 = "https://storage.mangabuzz.org";
 
-// Render が割り当てるポートに対応
 const PORT = process.env.PORT || 3000;
 
-// プロキシの本体処理
 app.all('*', async (req, res) => {
-    // クエリパラメータから url を取得。なければ TARGET_DOMAIN にリダイレクト
     const reqUrl = new URL(req.url, `http://${req.headers.host}`);
     let targetUrlStr = reqUrl.searchParams.get("url");
 
@@ -28,7 +25,6 @@ app.all('*', async (req, res) => {
     const targetOrigin = parsedTargetUrl.origin;
     const isImageCdn = (targetOrigin === IMAGE_CDN_DOMAIN || targetOrigin === IMAGE_CDN_DOMAIN_2);
 
-    // ヘッダーの構築
     const proxyHeaders = new Headers();
     for (const [key, value] of Object.entries(req.headers)) {
         if (key.toLowerCase() !== 'host' && key.toLowerCase() !== 'cookie') {
@@ -42,7 +38,6 @@ app.all('*', async (req, res) => {
     }
 
     try {
-        // リクエストの転送
         const fetchOptions = {
             method: req.method,
             headers: proxyHeaders,
@@ -50,16 +45,14 @@ app.all('*', async (req, res) => {
         };
 
         if (req.method !== 'GET' && req.method !== 'HEAD') {
-            // ボディがある場合はストリームまたはバッファとして渡す
             fetchOptions.body = req;
-            fetchOptions.duplex = 'half'; // Node.js の fetch でストリームを送る場合に必要
+            fetchOptions.duplex = 'half';
         }
 
         const response = await fetch(parsedTargetUrl.toString(), fetchOptions);
         const contentType = response.headers.get("content-type") || "";
         const currentWorkerOrigin = `${req.protocol}://${req.get('host')}`;
 
-        // CORS等のヘッダーを引き継ぎつつ設定
         res.status(response.status);
         response.headers.forEach((val, key) => {
             if (key.toLowerCase() !== 'content-length' && key.toLowerCase() !== 'content-encoding') {
@@ -73,14 +66,12 @@ app.all('*', async (req, res) => {
             return res.status(204).end();
         }
 
-        // 1. 画像やCDN、その他のバイナリ・通常レスポンス
         if (contentType.includes("image") || isImageCdn) {
             res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
             const buffer = Buffer.from(await response.arrayBuffer());
             return res.send(buffer);
         }
 
-        // 2. JavaScript, JSON, CSS の書き換え
         if (contentType.includes("javascript") || contentType.includes("json") || contentType.includes("css")) {
             let text = await response.text();
             const targets = [TARGET_DOMAIN, IMAGE_CDN_DOMAIN, IMAGE_CDN_DOMAIN_2];
@@ -95,11 +86,9 @@ app.all('*', async (req, res) => {
             return res.send(text);
         }
 
-        // 3. HTML の書き換え (Worker版のHTMLRewriterの代わり文字列置換またはインジェクション)
         if (contentType.includes("text/html")) {
             let html = await response.text();
 
-            // インジェクションするインターセプター・スクリプト（Worker版と同一）
             const interceptorScript = `
 <script>
 (function() {
@@ -174,7 +163,6 @@ app.all('*', async (req, res) => {
 </script>
 `;
 
-            // <head> の先頭にインターセプターを挿入
             if (html.includes('<head>')) {
                 html = html.replace('<head>', `<head>${interceptorScript}`);
             } else if (html.includes('<HEAD>')) {
@@ -186,7 +174,6 @@ app.all('*', async (req, res) => {
             return res.send(html);
         }
 
-        // その他のレスポンスはそのままストリーム転送
         const buffer = Buffer.from(await response.arrayBuffer());
         return res.send(buffer);
 
