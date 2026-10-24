@@ -1,5 +1,5 @@
 {
-  "name": "manga-proxy",
+  "name": "manga-proxy-render",
   "version": "1.0.0",
   "private": true,
   "main": "server.js",
@@ -8,9 +8,6 @@
   },
   "dependencies": {
     "express": "^4.19.2"
-  },
-  "devDependencies": {
-    "wrangler": "^3.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
